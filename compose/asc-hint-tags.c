@@ -114,7 +114,17 @@ AscHintTagStatic asc_hint_tag_list[] =  {
 	  "Unable to read release information from <code>{{path}}</code>. The error message was: {{msg}}."
 	},
 
-	{ "file-read-error",
+	{ "desktop-file-read-error",
+	  AS_ISSUE_SEVERITY_ERROR,
+	  "Unable to read data from file <code>{{fname}}</code>: {{msg}}",
+	},
+
+	{ "icon-file-read-error",
+	  AS_ISSUE_SEVERITY_ERROR,
+	  "Unable to read data from file <code>{{fname}}</code>: {{msg}}",
+	},
+
+	{ "metainfo-file-read-error",
 	  AS_ISSUE_SEVERITY_ERROR,
 	  "Unable to read data from file <code>{{fname}}</code>: {{msg}}",
 	},
