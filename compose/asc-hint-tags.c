@@ -57,7 +57,7 @@ AscHintTagStatic asc_hint_tag_list[] =  {
 	},
 
 	{ "ancient-metadata",
-	  AS_ISSUE_SEVERITY_WARNING,
+	  AS_ISSUE_SEVERITY_INFO,
 	  "The AppStream metadata should be updated to follow a more recent version of the specification.<br/>"
 	  "Please consult the <a href=\"https://www.freedesktop.org/software/appstream/docs/chap-Quickstart.html\">MetaInfo quickstart guides</a> for "
 	  "more information."
@@ -99,7 +99,7 @@ AscHintTagStatic asc_hint_tag_list[] =  {
 	},
 
 	{ "metainfo-unknown-type",
-	  AS_ISSUE_SEVERITY_ERROR,
+	  AS_ISSUE_SEVERITY_INFO,
 	  "The component has an unknown type. Please make sure this component type is mentioned in the specification, and that the"
 	  "<code>type=</code> property of the component root-node in the MetaInfo XML file does not contain a spelling mistake."
 	},
@@ -158,7 +158,7 @@ AscHintTagStatic asc_hint_tag_list[] =  {
 	},
 
 	{ "icon-not-found",
-	  AS_ISSUE_SEVERITY_ERROR,
+	  AS_ISSUE_SEVERITY_INFO,
 	  "The icon <em>{{icon_fname}}</em> was not found in the archive. This issue can have multiple reasons, "
 	  "like the icon being in a wrong directory or not being available in a suitable size (at least 64x64px). "
 	  "To make the icon easier to find, place it in <code>/usr/share/icons/hicolor/&lt;size&gt;/apps</code> and ensure the <code>Icon=</code> value"
@@ -182,7 +182,7 @@ AscHintTagStatic asc_hint_tag_list[] =  {
 	},
 
 	{ "metainfo-screenshot-but-no-media",
-	  AS_ISSUE_SEVERITY_WARNING,
+	  AS_ISSUE_SEVERITY_INFO,
 	  "A screenshot has been found for this component, but apparently it does not have any images or videos defined. "
 	  "The screenshot entry has been ignored."
 	},
@@ -260,7 +260,7 @@ AscHintTagStatic asc_hint_tag_list[] =  {
 	},
 
 	{ "gui-app-without-icon",
-	  AS_ISSUE_SEVERITY_ERROR,
+	  AS_ISSUE_SEVERITY_INFO,
 	  "The component is a GUI application (application which has a .desktop file for the XDG menu and <code>Type=Application</code>), "
 	  "but we could not find a matching icon for this application."
 	},
@@ -283,7 +283,7 @@ AscHintTagStatic asc_hint_tag_list[] =  {
 	},
 
 	{ "no-valid-category",
-	  AS_ISSUE_SEVERITY_ERROR,
+	  AS_ISSUE_SEVERITY_INFO,
 	  "This software component is no member of any valid category (note that custom categories and toolkit categories like 'Qt' or 'GTK' are ignored)."
 	},
 
@@ -293,7 +293,7 @@ AscHintTagStatic asc_hint_tag_list[] =  {
 	},
 
 	{ "no-metainfo",
-	  AS_ISSUE_SEVERITY_WARNING,
+	  AS_ISSUE_SEVERITY_INFO,
 	  "This software component is missing a <a href=\"https://www.freedesktop.org/software/appstream/docs/chap-Metadata.html#sect-Metadata-GenericComponent\">MetaInfo file</a> "
 	  "as metadata source.<br/>"
 	  "To synthesize suitable metadata anyway, we took some data from its desktop-entry file.<br/>"
