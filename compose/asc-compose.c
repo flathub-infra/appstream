@@ -101,7 +101,7 @@ asc_compose_init (AscCompose *compose)
 	priv->flags = ASC_COMPOSE_FLAG_USE_THREADS | ASC_COMPOSE_FLAG_ALLOW_NET |
 		      ASC_COMPOSE_FLAG_VALIDATE | ASC_COMPOSE_FLAG_STORE_SCREENSHOTS |
 		      ASC_COMPOSE_FLAG_ALLOW_SCREENCASTS | ASC_COMPOSE_FLAG_PROCESS_FONTS |
-		      ASC_COMPOSE_FLAG_PROCESS_TRANSLATIONS;
+		      ASC_COMPOSE_FLAG_PROCESS_TRANSLATIONS | ASC_COMPOSE_FLAG_PROPAGATE_CUSTOM;
 
 	/* the icon policy will initialize with default settings */
 	priv->icon_policy = asc_icon_policy_new ();
