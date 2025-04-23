@@ -239,7 +239,9 @@ subdir('tools/')
 subdir('po/')
 subdir('data/')
 subdir('contrib/')
-subdir('docs/')
+if get_option('docs')
+    subdir('docs/')
+endif
 if get_option('tests')
     subdir('tests/')
 endif
