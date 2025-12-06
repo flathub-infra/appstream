@@ -94,7 +94,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "description-has-plaintext-url",
-	  AS_ISSUE_SEVERITY_WARNING,
+	  AS_ISSUE_SEVERITY_INFO,
 	  N_("The description contains a web URL in plain text. This is not allowed, please use the <url/> tag instead to share links.")
 	},
 
@@ -175,7 +175,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "cid-domain-not-lowercase",
-	  AS_ISSUE_SEVERITY_ERROR,
+	  AS_ISSUE_SEVERITY_INFO,
 	  N_("The domain part of the rDNS component ID (first two parts) must only contain lowercase characters.")
 	},
 
@@ -491,7 +491,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "component-name-too-long",
-	  AS_ISSUE_SEVERITY_WARNING,
+	  AS_ISSUE_SEVERITY_INFO,
 	  N_("The name of this component is excessively long and can likely not be displayed properly in most layouts.")
 	},
 
@@ -536,7 +536,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "summary-too-long",
-	  AS_ISSUE_SEVERITY_WARNING,
+	  AS_ISSUE_SEVERITY_INFO,
 	  N_("The summary text is very long, and will likely not be displayed properly everywhere. It should be <= 90 characters.")
 	},
 
@@ -627,7 +627,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "developer-id-invalid",
-	  AS_ISSUE_SEVERITY_WARNING,
+	  AS_ISSUE_SEVERITY_INFO,
 	  N_("The developer-ID is invalid. It should be an rDNS string identifying the developer, or a Fediverse handle. "
 	     "It must also only contain lowercase ASCII letters, numbers and punctuation."),
 	},
@@ -815,7 +815,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "app-categories-missing",
-	  AS_ISSUE_SEVERITY_ERROR,
+	  AS_ISSUE_SEVERITY_INFO,
 	  N_("This component is in no valid categories, even though it should be. Please check its metainfo file and desktop-entry file."),
 	},
 
