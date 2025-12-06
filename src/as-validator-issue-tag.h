@@ -43,7 +43,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "invalid-child-tag-name",
-	  AS_ISSUE_SEVERITY_INFO,
+	  AS_ISSUE_SEVERITY_ERROR,
 	  N_("Tags of this name are not permitted in this section.")
 	},
 
@@ -164,7 +164,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "cid-has-number-prefix",
-	  AS_ISSUE_SEVERITY_INFO,
+	  AS_ISSUE_SEVERITY_ERROR,
 	  N_("The component ID contains a segment starting with a number. Starting a segment of the reverse-DNS ID with a number is strongly discouraged, "
              "to keep interoperability with other tools such as D-Bus. Ideally, prefix these segments with an underscore.")
 	},
@@ -190,7 +190,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "cid-missing-affiliation-gnome",
-	  AS_ISSUE_SEVERITY_INFO,
+	  AS_ISSUE_SEVERITY_WARNING,
 	  N_("The component is part of the GNOME project, but its ID does not start with GNOME's reverse-DNS name (\"org.gnome\").")
 	},
 
@@ -620,7 +620,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "developer-id-missing",
-	  AS_ISSUE_SEVERITY_INFO,
+	  AS_ISSUE_SEVERITY_ERROR,
 	  /* TRANSLATORS: Please do not translate AppStream tag and property names (in backticks). */
 	  N_("The `developer` element is missing an `id` property, containing a unique string ID for the developer. "
 	     "Consider adding a unique ID."),
@@ -674,7 +674,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "unknown-tag",
-	  AS_ISSUE_SEVERITY_INFO,
+	  AS_ISSUE_SEVERITY_ERROR,
 	  N_("Found invalid tag. Non-standard tags should be prefixed with `x-`. "
 	     "AppStream also provides the <custom/> tag to add arbitrary custom data to metainfo files. This tag is read by AppStream libraries and may be useful "
 	     "instead of defining new custom toplevel or `x-`-prefixed tags if you just want to add custom data to a metainfo file.")
@@ -722,7 +722,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "desktop-app-launchable-omitted",
-	  AS_ISSUE_SEVERITY_INFO,
+	  AS_ISSUE_SEVERITY_ERROR,
 	  /* TRANSLATORS: Please do not translate AppStream tag and property names (in backticks). */
 	  N_("This `desktop-application` component has no `desktop-id` launchable tag, "
 	     "however it contains all the necessary information to display the application. "
@@ -1032,7 +1032,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "releases-info-missing",
-	  AS_ISSUE_SEVERITY_PEDANTIC,
+	  AS_ISSUE_SEVERITY_ERROR,
 	  /* TRANSLATORS: Please do not translate AppStream tag and property names (in backticks). */
 	  N_("This component is missing information about releases. Consider adding a `releases` tag to describe releases and their changes."),
 	},
@@ -1074,7 +1074,7 @@ static AsValidatorIssueTag as_validator_issue_tag_list[] =  {
 	},
 
 	{ "content-rating-missing",
-	  AS_ISSUE_SEVERITY_INFO,
+	  AS_ISSUE_SEVERITY_ERROR,
 	  /* TRANSLATORS: Please do not translate AppStream tag and property names (in backticks). */
 	  N_("This component has no `content_rating` tag to provide age rating information. "
 	     "You can generate the tag data online by answering a few questions at https://hughsie.github.io/oars/"),
