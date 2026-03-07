@@ -478,6 +478,7 @@ asc_process_screenshot_images_lang (AscResult *cres,
 				     NULL);
 		return FALSE;
 	}
+	asc_result_update_component_gcid (cres, cpt, img_bytes);
 	img_data = g_bytes_get_data (img_bytes, &img_data_len);
 
 	gcid = asc_result_gcid_for_component (cres, cpt);
@@ -797,7 +798,8 @@ asc_process_screenshots (AscResult *cres,
 	GPtrArray *screenshots = NULL;
 	g_autoptr(GPtrArray) valid_scrs = NULL;
 	const gchar *gcid = NULL;
-	g_autofree gchar *scr_export_dir = NULL;
+	g_autofree gchar *initial_gcid = NULL;
+	g_autofree gchar *scr_staging_dir = NULL;
 	g_autofree gchar *scr_base_url = NULL;
 
 	/* sanity check */
@@ -820,11 +822,12 @@ asc_process_screenshots (AscResult *cres,
 		return;
 	}
 
-	/* if we shouldn't export screenshots, we store downloads in a temporary directory */
+	initial_gcid = g_strdup (gcid);
+
 	if (store_screenshots)
-		scr_export_dir = g_build_filename (media_export_root, gcid, "screenshots", NULL);
+		scr_staging_dir = g_build_filename (media_export_root, gcid, "screenshots.tmp", NULL);
 	else
-		scr_export_dir = g_build_filename (asc_globals_get_tmp_dir (), gcid, NULL);
+		scr_staging_dir = g_build_filename (asc_globals_get_tmp_dir (), gcid, NULL);
 
 	/* the media URL prefix is used to embed absolute URLs for screenshots, if needed */
 	if (media_url_prefix == NULL)
@@ -848,7 +851,7 @@ asc_process_screenshots (AscResult *cres,
 									 cpt,
 									 scr,
 									 acurl,
-									 scr_export_dir,
+									 scr_staging_dir,
 									 scr_base_url,
 									 max_size_bytes,
 									 store_screenshots,
@@ -858,7 +861,7 @@ asc_process_screenshots (AscResult *cres,
 								 cpt,
 								 scr,
 								 acurl,
-								 scr_export_dir,
+								 scr_staging_dir,
 								 scr_base_url,
 								 max_size_bytes,
 								 store_screenshots,
@@ -869,7 +872,81 @@ asc_process_screenshots (AscResult *cres,
 			g_ptr_array_add (valid_scrs, res_scr);
 	}
 
-	/* drop all preexisting screenshots from the MetaInfo data */
+	if (store_screenshots && valid_scrs->len > 0) {
+		const gchar *final_gcid = NULL;
+		g_autofree gchar *final_scr_dir = NULL;
+		g_autofree gchar *final_parent = NULL;
+		g_autofree gchar *old_scr_base_url = NULL;
+		g_autofree gchar *new_scr_base_url = NULL;
+
+		final_gcid = asc_result_gcid_for_component (cres, cpt);
+		final_scr_dir = g_build_filename (media_export_root, final_gcid, "screenshots", NULL);
+		final_parent = g_build_filename (media_export_root, final_gcid, NULL);
+
+		g_mkdir_with_parents (final_parent, 0755);
+
+		if (g_rename (scr_staging_dir, final_scr_dir) != 0) {
+			asc_result_add_hint (
+			    cres,
+			    cpt,
+			    "internal-error",
+			    "msg",
+			    "Failed to move screenshot staging dir to final path.",
+			    NULL);
+			return;
+		}
+
+		if (g_strcmp0 (initial_gcid, final_gcid) != 0) {
+			if (media_url_prefix == NULL) {
+				old_scr_base_url = g_build_path (
+					G_DIR_SEPARATOR_S,
+					initial_gcid,
+					"screenshots",
+					NULL);
+				new_scr_base_url = g_build_path (
+					G_DIR_SEPARATOR_S,
+					final_gcid,
+					"screenshots",
+					NULL);
+			} else {
+				old_scr_base_url = g_build_path (
+					G_DIR_SEPARATOR_S,
+					media_url_prefix,
+					initial_gcid,
+					"screenshots",
+					NULL);
+				new_scr_base_url = g_build_path (
+					G_DIR_SEPARATOR_S,
+					media_url_prefix,
+					final_gcid,
+					"screenshots",
+					NULL);
+			}
+
+			for (guint i = 0; i < valid_scrs->len; i++) {
+				AsScreenshot *scr = AS_SCREENSHOT (g_ptr_array_index (valid_scrs, i));
+				GPtrArray *imgs = as_screenshot_get_images_all (scr);
+
+				for (guint j = 0; j < imgs->len; j++) {
+					AsImage *img = AS_IMAGE (g_ptr_array_index (imgs, j));
+					const gchar *old_url = as_image_get_url (img);
+					g_auto(GStrv) parts = NULL;
+					g_autofree gchar *new_url = NULL;
+
+					if (old_url == NULL)
+						continue;
+
+					parts = g_strsplit (old_url, old_scr_base_url, 2);
+
+					if (g_strv_length (parts) == 2) {
+						new_url = g_strconcat (new_scr_base_url, parts[1], NULL);
+						as_image_set_url (img, new_url);
+					}
+				}
+			}
+		}
+	}
+
 	g_ptr_array_remove_range (screenshots, 0, screenshots->len);
 
 	/* add valid screenshots back */

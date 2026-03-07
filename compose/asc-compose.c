@@ -29,6 +29,7 @@
 
 #include <errno.h>
 #include <glib/gi18n.h>
+#include <glib/gstdio.h>
 
 #include "as-utils-private.h"
 #include "as-yaml.h"
@@ -944,7 +945,8 @@ asc_compose_process_icons (AscCompose *compose,
 			   AscResult *cres,
 			   AsComponent *cpt,
 			   AscUnit *unit,
-			   const gchar *icon_export_dir)
+			   const gchar *icon_export_dir,
+			   const gchar *icon_staging_dir)
 {
 	AscComposePrivate *priv = GET_PRIVATE (compose);
 	GPtrArray *icons = NULL;
@@ -1041,6 +1043,9 @@ asc_compose_process_icons (AscCompose *compose,
 					     NULL);
 			return;
 		}
+
+		asc_result_update_component_gcid (cres, cpt, img_bytes);
+
 		img_data = g_bytes_get_data (img_bytes, &img_len);
 		img = asc_image_new_from_data (img_data,
 					       img_len,
@@ -1095,67 +1100,22 @@ asc_compose_process_icons (AscCompose *compose,
 			return;
 		}
 
-		/* create a remote reference if we have data for it */
-		if (priv->media_result_dir != NULL && icon_state != ASC_ICON_STATE_CACHED_ONLY) {
-			g_autofree gchar *icons_media_urlpart_dir = NULL;
-			g_autofree gchar *icon_media_urlpart_fname = NULL;
-			g_autofree gchar *icons_media_path = NULL;
-			g_autofree gchar *icon_media_fname = NULL;
-			g_autoptr(AsIcon) remote_icon = NULL;
-			icons_media_urlpart_dir = g_strdup_printf (
-			    "%s/%s/%s",
-			    asc_result_gcid_for_component (cres, cpt),
-			    "icons",
-			    res_icon_size_str);
-			icon_media_urlpart_fname = g_strdup_printf ("%s/%s",
-								    icons_media_urlpart_dir,
-								    res_icon_basename);
-			icons_media_path = g_build_filename (priv->media_result_dir,
-							     icons_media_urlpart_dir,
-							     NULL);
-			icon_media_fname = g_build_filename (icons_media_path,
-							     res_icon_basename,
-							     NULL);
-			g_mkdir_with_parents (icons_media_path, 0755);
+		if (icon_staging_dir != NULL &&
+			icon_state != ASC_ICON_STATE_CACHED_ONLY) {
 
-			g_debug ("Adding media pool icon: %s", icon_media_fname);
-			if (!as_copy_file (res_icon_fname, icon_media_fname, &error)) {
-				g_warning ("Unable to write media pool icon: %s", icon_media_fname);
-				asc_result_add_hint (cres,
-						     cpt,
-						     "icon-write-error",
-						     "fname",
-						     icon_fname,
-						     "msg",
-						     error->message,
-						     NULL);
-				return;
+			g_autofree gchar *staging_sizedir = NULL;
+			g_autofree gchar *staging_fname = NULL;
+			g_autoptr(GError) cp_error = NULL;
+
+			staging_sizedir = g_build_filename (icon_staging_dir, res_icon_size_str, NULL);
+			g_mkdir_with_parents (staging_sizedir, 0755);
+			staging_fname = g_build_filename (staging_sizedir, res_icon_basename, NULL);
+
+			g_debug ("Staging icon for media export: %s", staging_fname);
+
+			if (!as_copy_file (res_icon_fname, staging_fname, &cp_error)) {
+				g_warning ("Failed to stage icon for media export: %s", cp_error->message);
 			}
-
-			/* add remote icon to metadata */
-			remote_icon = as_icon_new ();
-			as_icon_set_kind (remote_icon, AS_ICON_KIND_REMOTE);
-			as_icon_set_width (remote_icon, size);
-			as_icon_set_height (remote_icon, size);
-			as_icon_set_scale (remote_icon, scale_factor);
-
-			/* We can only make use of the media-baseurl-using partial URLs if screenshot storage
-			 * is also enabled, because otherwise screenshots will use full URLs which conflicts
-			 * with the media baseurl (as it is unconditionally prefixed to *all* media URLs */
-			if (as_flags_contains (priv->flags, ASC_COMPOSE_FLAG_STORE_SCREENSHOTS) &&
-			    !as_flags_contains (priv->flags, ASC_COMPOSE_FLAG_NO_PARTIAL_URLS)) {
-				as_icon_set_url (remote_icon, icon_media_urlpart_fname);
-			} else {
-				g_autofree gchar *icon_remote_url = g_strconcat (
-				    priv->media_baseurl,
-				    "/",
-				    icon_media_urlpart_fname,
-				    NULL);
-				/* if priv->media_result_dir is set, media_baseurl will be set too (checked before each run) */
-				as_icon_set_url (remote_icon, icon_remote_url);
-			}
-
-			as_component_add_icon (cpt, remote_icon);
 		}
 
 		/* add icon to metadata */
@@ -1700,28 +1660,44 @@ asc_compose_process_task_cb (AscComposeTask *ctask, AscCompose *compose)
 	found_cpts = asc_result_fetch_components (ctask->result);
 	for (guint i = 0; i < found_cpts->len; i++) {
 		AsComponent *cpt = AS_COMPONENT (g_ptr_array_index (found_cpts, i));
+		g_autofree gchar *icons_export_dir = NULL;
+		g_autofree gchar *icon_staging_dir = NULL;
+		g_autofree gchar *initial_gcid = NULL;
+		g_autofree gchar *post_icon_gcid = NULL;
 
 		/* icons */
 		if (!as_flags_contains (priv->flags, ASC_COMPOSE_FLAG_IGNORE_ICONS)) {
-			g_autofree gchar *icons_export_dir = NULL;
+			initial_gcid = g_strdup (asc_result_gcid_for_component (ctask->result, cpt));
+
 			if (priv->icons_result_dir == NULL)
 				icons_export_dir = g_build_filename (
 				    asc_globals_get_tmp_dir (),
-				    asc_result_gcid_for_component (ctask->result, cpt),
+				    initial_gcid,
 				    "icons",
 				    NULL);
 			else
 				icons_export_dir = g_strdup (priv->icons_result_dir);
 
+			if (priv->media_result_dir != NULL) {
+				icon_staging_dir = g_build_filename (
+					priv->media_result_dir,
+					initial_gcid,
+					"icons.tmp",
+					NULL);
+			}
+
 			asc_compose_process_icons (compose,
 						   ctask->result,
 						   cpt,
 						   ctask->unit,
-						   icons_export_dir);
+						   icons_export_dir,
+						   icon_staging_dir);
 			/* skip the next steps if the component has been ignored */
 			if (asc_result_is_ignored (ctask->result, cpt))
 				continue;
 		}
+
+		post_icon_gcid = g_strdup (asc_result_gcid_for_component (ctask->result, cpt));
 
 		/* screenshots, but only if we allow network access */
 		if (as_flags_contains (priv->flags, ASC_COMPOSE_FLAG_ALLOW_NET) && acurl != NULL)
@@ -1736,6 +1712,109 @@ asc_compose_process_task_cb (AscComposeTask *ctask, AscCompose *compose)
 			    priv->max_scr_size_bytes,
 			    as_flags_contains (priv->flags, ASC_COMPOSE_FLAG_ALLOW_SCREENCASTS),
 			    as_flags_contains (priv->flags, ASC_COMPOSE_FLAG_STORE_SCREENSHOTS));
+
+		if (priv->media_result_dir != NULL && icon_staging_dir != NULL &&
+			g_file_test (icon_staging_dir, G_FILE_TEST_EXISTS)) {
+			g_autofree gchar *final_gcid = g_strdup (asc_result_gcid_for_component (ctask->result, cpt));
+			g_autofree gchar *final_icons_dir = g_build_filename (
+				priv->media_result_dir,
+				final_gcid,
+				"icons",
+				NULL);
+			g_autofree gchar *final_parent = g_build_filename (
+				priv->media_result_dir,
+				final_gcid,
+				NULL);
+
+			g_mkdir_with_parents (final_parent, 0755);
+
+			if (rename (icon_staging_dir, final_icons_dir) != 0) {
+				g_warning ("Failed to move icon staging dir to final GCID path: %s", g_strerror (errno));
+			} else {
+				AscIconPolicyIter ip_iter;
+				guint icon_size;
+				guint icon_scale;
+				AscIconState icon_state;
+
+				asc_icon_policy_iter_init (&ip_iter, priv->icon_policy);
+				while (asc_icon_policy_iter_next (&ip_iter,
+								&icon_size,
+								&icon_scale,
+								&icon_state)) {
+					g_autofree gchar *res_icon_size_str = NULL;
+					g_autofree gchar *icons_media_urlpart_dir = NULL;
+					g_autofree gchar *icon_media_urlpart_fname = NULL;
+					g_autofree gchar *res_icon_basename = NULL;
+					g_autoptr(AsIcon) remote_icon = NULL;
+
+					if (icon_state == ASC_ICON_STATE_IGNORED ||
+						icon_state == ASC_ICON_STATE_CACHED_ONLY)
+						continue;
+
+					res_icon_size_str =
+						(icon_scale == 1)
+						? g_strdup_printf ("%ix%i", icon_size, icon_size)
+						: g_strdup_printf ("%ix%i@%i",
+								icon_size,
+								icon_size,
+								icon_scale);
+					res_icon_basename = g_strdup_printf ("%s.png", as_component_get_id (cpt));
+					icons_media_urlpart_dir = g_strdup_printf (
+						"%s/%s/%s",
+						final_gcid,
+						"icons",
+						res_icon_size_str);
+					icon_media_urlpart_fname = g_strdup_printf (
+						"%s/%s",
+						icons_media_urlpart_dir,
+						res_icon_basename);
+
+					remote_icon = as_icon_new ();
+					as_icon_set_kind (remote_icon, AS_ICON_KIND_REMOTE);
+					as_icon_set_width (remote_icon, icon_size);
+					as_icon_set_height (remote_icon, icon_size);
+					as_icon_set_scale (remote_icon, icon_scale);
+
+					if (as_flags_contains (priv->flags,
+							ASC_COMPOSE_FLAG_STORE_SCREENSHOTS) &&
+						!as_flags_contains (priv->flags,
+								ASC_COMPOSE_FLAG_NO_PARTIAL_URLS)) {
+						as_icon_set_url (remote_icon, icon_media_urlpart_fname);
+					} else {
+						g_autofree gchar *icon_remote_url = g_strconcat (
+							priv->media_baseurl,
+							"/",
+							icon_media_urlpart_fname,
+							NULL);
+						as_icon_set_url (remote_icon, icon_remote_url);
+					}
+
+					as_component_add_icon (cpt, remote_icon);
+				}
+			}
+
+			if (initial_gcid != NULL &&
+				g_strcmp0 (initial_gcid, final_gcid) != 0) {
+				g_autofree gchar *old_parent = g_build_filename (
+					priv->media_result_dir, initial_gcid, NULL);
+
+				if (g_rmdir (old_parent) != 0)
+					g_debug ("Failed to remove initial staging dir '%s': %s",
+						old_parent,
+						g_strerror (errno));
+			}
+
+			if (post_icon_gcid != NULL &&
+				g_strcmp0 (post_icon_gcid, final_gcid) != 0) {
+				g_autofree gchar *old_parent = g_build_filename (
+					priv->media_result_dir, post_icon_gcid, NULL);
+
+				if (g_rmdir (old_parent) != 0)
+					g_debug ("Failed to remove post-icon staging dir '%s': %s",
+						old_parent,
+						g_strerror (errno));
+			}
+		}
 
 		if (as_component_get_kind (cpt) == AS_COMPONENT_KIND_FONT)
 			has_fonts = TRUE;
