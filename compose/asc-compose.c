@@ -1745,6 +1745,7 @@ asc_compose_process_task_cb (AscComposeTask *ctask, AscCompose *compose)
 					g_autofree gchar *icons_media_urlpart_dir = NULL;
 					g_autofree gchar *icon_media_urlpart_fname = NULL;
 					g_autofree gchar *res_icon_basename = NULL;
+					g_autofree gchar *icon_media_fname = NULL;
 					g_autoptr(AsIcon) remote_icon = NULL;
 
 					if (icon_state == ASC_ICON_STATE_IGNORED ||
@@ -1759,6 +1760,12 @@ asc_compose_process_task_cb (AscComposeTask *ctask, AscCompose *compose)
 								icon_size,
 								icon_scale);
 					res_icon_basename = g_strdup_printf ("%s.png", as_component_get_id (cpt));
+					icon_media_fname = g_build_filename (final_icons_dir,
+									     res_icon_size_str,
+									     res_icon_basename,
+									     NULL);
+					if (!g_file_test (icon_media_fname, G_FILE_TEST_EXISTS))
+						continue;
 					icons_media_urlpart_dir = g_strdup_printf (
 						"%s/%s/%s",
 						final_gcid,
