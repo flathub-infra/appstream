@@ -102,6 +102,7 @@ asc_mediaworker_exe = executable('asc-mediaworker',
     dependencies: [
         appstream_compose_dep,
         gio_dep,
+        vips_dep,
     ],
     include_directories: [root_inc_dir,
                           include_directories('..')],
