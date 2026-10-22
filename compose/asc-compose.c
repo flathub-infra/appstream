@@ -1718,6 +1718,172 @@ asc_compose_add_image_format_to_gcids (AscCompose *compose, AscResult *cres)
 	}
 }
 
+static gint
+asc_compose_media_path_cmp (gconstpointer a, gconstpointer b)
+{
+	return g_strcmp0 (*((const gchar **) a), *((const gchar **) b));
+}
+
+static void
+asc_compose_collect_media_files (const gchar *root, const gchar *rel_dir, GPtrArray *files)
+{
+	g_autofree gchar *dir_path = NULL;
+	g_autoptr(GDir) dir = NULL;
+	const gchar *name;
+
+	dir_path = rel_dir == NULL ? g_strdup (root) : g_build_filename (root, rel_dir, NULL);
+	dir = g_dir_open (dir_path, 0, NULL);
+	if (dir == NULL)
+		return;
+
+	while ((name = g_dir_read_name (dir)) != NULL) {
+		g_autofree gchar *rel_path = NULL;
+		g_autofree gchar *path = NULL;
+
+		rel_path = rel_dir == NULL ? g_strdup (name) : g_build_filename (rel_dir, name, NULL);
+		path = g_build_filename (root, rel_path, NULL);
+		if (g_file_test (path, G_FILE_TEST_IS_SYMLINK))
+			continue;
+		if (g_file_test (path, G_FILE_TEST_IS_DIR))
+			asc_compose_collect_media_files (root, rel_path, files);
+		else
+			g_ptr_array_add (files, g_steal_pointer (&rel_path));
+	}
+}
+
+static gchar *
+asc_compose_rebase_media_url (const gchar *url, const gchar *old_gcid, const gchar *new_gcid)
+{
+	g_autofree gchar *needle = NULL;
+	const gchar *pos;
+
+	if (url == NULL)
+		return NULL;
+
+	needle = g_strconcat (old_gcid, "/", NULL);
+	if (g_str_has_prefix (url, needle)) {
+		pos = url;
+	} else {
+		g_autofree gchar *sep_needle = g_strconcat ("/", needle, NULL);
+		pos = strstr (url, sep_needle);
+		if (pos == NULL)
+			return NULL;
+		pos++;
+	}
+
+	return g_strdup_printf ("%.*s%s/%s",
+				(gint) (pos - url),
+				url,
+				new_gcid,
+				pos + strlen (needle));
+}
+
+static void
+asc_compose_fold_media_into_gcid (AscCompose *compose, AscResult *cres, AsComponent *cpt)
+{
+	AscComposePrivate *priv = GET_PRIVATE (compose);
+	g_autofree gchar *old_gcid = NULL;
+	g_autofree gchar *old_dir = NULL;
+	g_autofree gchar *new_dir = NULL;
+	g_autofree gchar *new_parent = NULL;
+	g_autoptr(GPtrArray) files = NULL;
+	g_autoptr(GPtrArray) contents = NULL;
+	g_autoptr(GError) error = NULL;
+	const gchar *new_gcid;
+	GPtrArray *icons;
+	GPtrArray *scrs;
+
+	old_gcid = g_strdup (asc_result_gcid_for_component (cres, cpt));
+	if (old_gcid == NULL)
+		return;
+
+	old_dir = g_build_filename (priv->media_result_dir, old_gcid, NULL);
+	files = g_ptr_array_new_with_free_func (g_free);
+	asc_compose_collect_media_files (old_dir, NULL, files);
+	if (files->len == 0)
+		return;
+	g_ptr_array_sort (files, asc_compose_media_path_cmp);
+
+	contents = g_ptr_array_new_with_free_func ((GDestroyNotify) g_bytes_unref);
+	for (guint i = 0; i < files->len; i++) {
+		const gchar *rel_path = g_ptr_array_index (files, i);
+		g_autofree gchar *path = g_build_filename (old_dir, rel_path, NULL);
+		gchar *data = NULL;
+		gsize data_len = 0;
+
+		if (!g_file_get_contents (path, &data, &data_len, &error)) {
+			asc_result_add_hint (cres, cpt, "internal-error", "msg", error->message, NULL);
+			return;
+		}
+		g_ptr_array_add (contents, g_bytes_new_take (data, data_len));
+	}
+
+	for (guint i = 0; i < files->len; i++) {
+		if (!asc_result_update_component_gcid_with_string (cres,
+								   cpt,
+								   g_ptr_array_index (files, i),
+								   &error) ||
+		    !asc_result_update_component_gcid (cres,
+						       cpt,
+						       g_ptr_array_index (contents, i),
+						       &error)) {
+			asc_result_add_hint (cres, cpt, "internal-error", "msg", error->message, NULL);
+			return;
+		}
+	}
+
+	new_gcid = asc_result_gcid_for_component (cres, cpt);
+	new_dir = g_build_filename (priv->media_result_dir, new_gcid, NULL);
+	new_parent = g_path_get_dirname (new_dir);
+	g_mkdir_with_parents (new_parent, 0755);
+	if (g_file_test (new_dir, G_FILE_TEST_IS_DIR))
+		as_utils_delete_dir_recursive (new_dir);
+	if (g_rename (old_dir, new_dir) != 0) {
+		g_autofree gchar *msg = g_strdup_printf ("Unable to move media from %s to %s: %s",
+							 old_dir,
+							 new_dir,
+							 g_strerror (errno));
+		asc_result_add_hint (cres, cpt, "internal-error", "msg", msg, NULL);
+		return;
+	}
+
+	icons = as_component_get_icons (cpt);
+	for (guint i = 0; i < icons->len; i++) {
+		AsIcon *icon = AS_ICON (g_ptr_array_index (icons, i));
+		g_autofree gchar *url = NULL;
+
+		if (as_icon_get_kind (icon) != AS_ICON_KIND_REMOTE)
+			continue;
+		url = asc_compose_rebase_media_url (as_icon_get_url (icon), old_gcid, new_gcid);
+		if (url != NULL)
+			as_icon_set_url (icon, url);
+	}
+
+	scrs = as_component_get_screenshots_all (cpt);
+	for (guint i = 0; i < scrs->len; i++) {
+		AsScreenshot *scr = AS_SCREENSHOT (g_ptr_array_index (scrs, i));
+		GPtrArray *imgs = as_screenshot_get_images_all (scr);
+		GPtrArray *vids = as_screenshot_get_videos_all (scr);
+
+		for (guint j = 0; j < imgs->len; j++) {
+			AsImage *img = AS_IMAGE (g_ptr_array_index (imgs, j));
+			g_autofree gchar *url = asc_compose_rebase_media_url (as_image_get_url (img),
+									     old_gcid,
+									     new_gcid);
+			if (url != NULL)
+				as_image_set_url (img, url);
+		}
+		for (guint j = 0; j < vids->len; j++) {
+			AsVideo *vid = AS_VIDEO (g_ptr_array_index (vids, j));
+			g_autofree gchar *url = asc_compose_rebase_media_url (as_video_get_url (vid),
+									     old_gcid,
+									     new_gcid);
+			if (url != NULL)
+				as_video_set_url (vid, url);
+		}
+	}
+}
+
 static void
 asc_compose_process_task_cb (AscComposeTask *ctask, AscCompose *compose)
 {
@@ -2116,6 +2282,9 @@ asc_compose_process_task_cb (AscComposeTask *ctask, AscCompose *compose)
 			    priv->image_format,
 			    as_flags_contains (priv->flags, ASC_COMPOSE_FLAG_ALLOW_VIDEOS),
 			    as_flags_contains (priv->flags, ASC_COMPOSE_FLAG_STORE_SCREENSHOTS));
+
+		if (priv->media_result_dir != NULL)
+			asc_compose_fold_media_into_gcid (compose, ctask->result, cpt);
 
 		if (as_component_get_kind (cpt) == AS_COMPONENT_KIND_FONT)
 			has_fonts = TRUE;
