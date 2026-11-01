@@ -233,10 +233,6 @@ test_validator_manyerrors_desktopapp (void)
 		    16, AS_ISSUE_SEVERITY_ERROR,
 		 },
 		{
-		    "description-markup-attribute-invalid", "em/@id",
-		    18, AS_ISSUE_SEVERITY_WARNING,
-		 },
-		{
 		    "description-markup-nesting-too-deep", "em",
 		    18, AS_ISSUE_SEVERITY_ERROR,
 		 },

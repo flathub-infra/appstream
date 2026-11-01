@@ -973,33 +973,6 @@ as_validator_first_word_capitalized (AsValidator *validator,
 }
 
 /**
- * as_validator_check_description_markup_props:
- *
- * Check that no unexpected attributes are set on a description markup element.
- * Only paragraphs and list items may carry a language property (in MetaInfo files),
- * any other attribute is never permitted.
- **/
-static void
-as_validator_check_description_markup_props (AsValidator *validator,
-					     xmlNode *node,
-					     gboolean allow_lang)
-{
-	for (xmlAttr *attr = node->properties; attr != NULL; attr = attr->next) {
-		const gchar *attr_name = (const gchar *) attr->name;
-
-		if (allow_lang && as_str_equal0 (attr_name, "lang"))
-			continue;
-
-		as_validator_add_issue (validator,
-					node,
-					"description-markup-attribute-invalid",
-					"%s/@%s",
-					(const gchar *) node->name,
-					attr_name);
-	}
-}
-
-/**
  * as_validator_check_description_paragraph:
  *
  * Check the contents of a description paragraph or list item for markup
@@ -1008,10 +981,6 @@ as_validator_check_description_markup_props (AsValidator *validator,
 static void
 as_validator_check_description_paragraph (AsValidator *validator, xmlNode *node, guint depth)
 {
-	/* the paragraph or list item itself may only be localized */
-	if (depth == 0)
-		as_validator_check_description_markup_props (validator, node, TRUE);
-
 	for (xmlNode *iter = node->children; iter != NULL; iter = iter->next) {
 		const gchar *node_name;
 		/* discard spaces */
@@ -1020,8 +989,6 @@ as_validator_check_description_paragraph (AsValidator *validator, xmlNode *node,
 		node_name = (const gchar *) iter->name;
 
 		if (as_str_equal0 (node_name, "em") || as_str_equal0 (node_name, "code")) {
-			as_validator_check_description_markup_props (validator, iter, FALSE);
-
 			/* excessive nesting is not processed by the XML parser either */
 			if (depth + 1 >= AS_DESCRIPTION_MARKUP_MAX_DEPTH) {
 				as_validator_add_issue (validator,
@@ -1085,9 +1052,6 @@ as_validator_check_description_block_l10n (AsValidator *validator,
 static void
 as_validator_check_description_heading (AsValidator *validator, xmlNode *node)
 {
-	/* the heading itself may only be localized */
-	as_validator_check_description_markup_props (validator, node, TRUE);
-
 	for (xmlNode *iter = node->children; iter != NULL; iter = iter->next) {
 		/* discard spaces */
 		if (iter->type != XML_ELEMENT_NODE)
@@ -1114,9 +1078,6 @@ as_validator_check_description_enumeration (AsValidator *validator,
 					"description-enum-group-translated",
 					"description/%s",
 					(const gchar *) node->name);
-	as_validator_check_description_markup_props (validator,
-						     node,
-						     mode == AS_FORMAT_STYLE_METAINFO);
 
 	for (xmlNode *iter = node->children; iter != NULL; iter = iter->next) {
 		const gchar *node_name;
